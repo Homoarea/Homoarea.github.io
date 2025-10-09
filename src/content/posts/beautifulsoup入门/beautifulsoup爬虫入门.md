@@ -91,7 +91,7 @@ soup = BeautifulSoup(res.text, "lxml")
 +print(value)
 ```
 
-`find()`,`find_all()`方法可以传递`class_`,`id`等参数作为筛选.每个 HTML 页面中,id 和元素是一对一关系,不可重复;class 和元素是一对多,多个元素可使用相同 class.
+`find()`,`find_all()`方法可以传递`class_`,`id`等参数作为筛选.每个 HTML 页面中,id 和元素是一对一关系,不可重复;class 和元素是多对多,一个元素可以有多个 class ,一个 class 可以被多个元素使用.
 
 我们使用根据 id 查到元素再调用`get()`方法获取其中 value 属性,输出如下:
 
@@ -104,7 +104,7 @@ soup = BeautifulSoup(res.text, "lxml")
 现在你已经入门了,找一个静态网页练习一下吧.(如果网站有反爬虫,还请换一个,不要打消积极性 😇)
 可以在浏览器打开开发者模式(快捷键`F12`)使用查看器和查看源代码.
 
-我喜欢看动画片,以爬取动画片时间表为例
+我喜欢看动画片,以爬取动画片时间表为例(正则表达式实际强大)
 
 ```python title="bs4_new_learn.py"
 from bs4 import BeautifulSoup
