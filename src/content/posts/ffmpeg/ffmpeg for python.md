@@ -25,8 +25,8 @@ ffmpeg -i <input video>
 
 我们来使用 ffmpeg 剪切视频试试
 
-测试视频(出自《kill la kill》动画的片段)
-<video src="./klk.mp4" controls></video>
+<!-- 测试视频(出自《kill la kill》动画的片段)
+<video src="./klk.mp4" style="width:70%" type="video/mp4" controls></video> -->
 
 使用
 
