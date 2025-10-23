@@ -111,11 +111,9 @@ from bs4 import BeautifulSoup
 import requests
 import re
 import os
-# 美化打印
-from pprint import pprint
 
-# <br>标签直接转为纯文本时的值
-HTML_TAR_BR='\n             \n             '
+import threading
+
 # 函数:获取去除首尾空格的字符串
 get_text_strip = lambda x: x.text.strip()
 # 函数:按<br>标签分割
@@ -125,57 +123,120 @@ get_text_strip = lambda x: x.text.strip()
 strip_html_br = lambda x: list(
     map(lambda z: z.strip(), filter(len, map(lambda y: y.text, x.contents)))
 )
-# 目标地址
-url = "https://yuc.wiki/202507/"
+"""
+将一维列表元素(按空格符)分割
+"""
+def split_list(list: list)-> list:
+    return [name for pair in list for name in pair.split()]
+"""
+将二维列表子列表(按空格符)分割
+"""
+def split_sublist(list: list,split_list=split_list)-> list:
+    for i in range(len(list)):
+        list[i]=split_list(list[i])
+    return list
+
+#目标地址
+domain="https://yuc.wiki"
+def url(uri: str)-> str:
+    return domain+uri
+"""
+获取文件名
+"""
+def get_filename(url: str)-> str:
+    return url.replace(domain,"wiki").replace('/','')+'.html'
+"""
+拉取html
+"""
+def fetch(url: str):
 # 如果不存在本地文件,则发请求保存到本地
-if not os.path.exists("bs4_new_learn.html"):
-    res = requests.get(url)
-    res.encoding = "utf-8"
-    soup = BeautifulSoup(res.text, "lxml")
-    open("bs4_new_learn.html", "w", encoding="utf-8").write(soup.prettify())
+    filename=get_filename(url)
+    if not os.path.exists(filename):
+        res = requests.get(url)
+        res.encoding = "utf-8"
+        soup = BeautifulSoup(res.text, "lxml")
+        open(filename, "w", encoding="utf-8").write(soup.prettify())
 
-# 解析本地文件
-soup = BeautifulSoup(open("bs4_new_learn.html", encoding="utf-8"), "lxml")
-# 中文标题
-cn_titles=list(map(get_text_strip,soup.find_all('p',class_='title_cn_r')))
-# 日文标题
-jp_titles=list(map(get_text_strip,soup.find_all('p',class_='title_jp_r')))
-# 动画片类型,使用正则表达式匹配
-type_animes=list(map(get_text_strip,soup.find_all('td',class_=re.compile('type_\w_r'))))
-# 标签
-type_tags=list(map(lambda x:get_text_strip(x).replace(HTML_TAR_BR,"/").split('/'),soup.find_all('td',class_=re.compile('type_tag_r*'))))
-# 工作人员
-staffs=list(map(strip_html_br,soup.find_all('td',class_=re.compile('staff_r*'))))
-# 演员
-casts=list(map(strip_html_br,soup.find_all('td',class_=re.compile('cast_r*'))))
-# 相关链接
-links=list(map(lambda x:list(map(lambda e:{'name':e.text.strip(),'url':e['href']},x.find_all('a'))),soup.find_all('td',class_="link_a_r")))
-# 播出时间
-broadcasts=list(map(lambda x:get_text_strip(x).replace(HTML_TAR_BR,'-'),soup.find_all('p',class_="broadcast_r")))
-# 集数
-broadcast_episodes=list(map(lambda x:x.text.replace(HTML_TAR_BR,'').strip(),soup.find_all('p',class_='broadcast_ex_r')))
+"""
+解析html
+"""
+def load(url: str)->BeautifulSoup:
+    # 解析本地文件
+    filename=get_filename(url)
+    return BeautifulSoup(open(filename, encoding="utf-8"), "lxml")
+def get_seasons():
+    soup=load(domain)
+    seasons=list(map(lambda x:x.find('a')['href'],soup.find_all('td',class_='index_season')))
+    return seasons
+def fetch_seasons(domain: str):
+    seasons=get_seasons()
+    for uri in seasons:
+        try:
+            t=threading.Thread(target=fetch,args=(domain+uri,))
+            t.start()
+        except:
+            print('error:unable to start thread')
 
-animes=[]
-for i in range(len(cn_titles)):
-    anime={}
-    anime['cn_title']=cn_titles[i]
-    anime['jp_title']=jp_titles[i]
-    anime['type']=type_animes[i]
-    anime['tags']=type_tags[i]
-    anime['staff']=staffs[i]
-    anime['cast']=casts[i]
-    anime['link']=links[i]
-    anime['broadcast']=broadcasts[i]
-    anime['episodes']=broadcast_episodes[i]
-    animes.append(anime)
+"""
+初始化所有文件
+"""
+def init():
+    fetch(domain)
+    fetch_seasons(domain)
 
-pprint(animes[0])
+"""
+解析季度动画片
+"""
+def load_animes(uri: str)-> list:
+    soup=load(url(uri))
+    # 中文标题
+    cn_titles=list(map(get_text_strip,soup.find_all('p',class_=re.compile('title_cn_r*'))))
+    # 日文标题
+    jp_titles=list(map(get_text_strip,soup.find_all('p',class_=re.compile('title_jp_r*'))))
+    # 动画片类型,使用正则表达式匹配
+    type_animes=list(map(strip_html_br,soup.find_all('td',class_=re.compile(r'type_\w_r*'))))
+    # 标签
+    type_tags=list(map(strip_html_br,soup.find_all('td',class_=re.compile('type_tag_r*'))))
+    type_tags=split_sublist(type_tags,split_list=lambda x:[name for pair in x for name in pair.split('/')])
+    # 工作人员
+    staffs=list(map(strip_html_br,soup.find_all('td',class_=re.compile('staff_r*'))))
+    # 演员
+    casts=list(map(strip_html_br,soup.find_all('td',class_=re.compile('cast_r*'))))
+    casts=split_sublist(casts)
+    # 相关链接
+    links=list(map(lambda x:list(map(lambda e:{'name':e.text.strip(),'url':e['href']},x.find_all('a'))),soup.find_all('td',class_="link_a_r")))
+    # 播出时间
+    broadcasts=list(map(strip_html_br,soup.find_all('p',class_="broadcast_r")))
+    # 集数
+    broadcast_episodes=list(map(strip_html_br,soup.find_all('p',class_='broadcast_ex_r')))
+
+    animes=[]
+    for i in range(len(cn_titles)):
+        anime={}
+        anime['cn_title']=cn_titles[i]
+        anime['jp_title']=jp_titles[i]
+        anime['type']=type_animes[i]
+        anime['tags']=type_tags[i]
+        anime['staff']=staffs[i]
+        anime['cast']=casts[i]
+        anime['link']=links[i]
+        anime['broadcast']=broadcasts[i]
+        anime['episodes']=broadcast_episodes[i]
+        animes.append(anime)
+
+    return animes
+
+
+#测试
+from pprint import pprint
+fetch(domain+'/202507')
+pprint(load_animes('/202507')[0])
 ```
 
 示例输出:
 
 ```
-{'broadcast': '7/9周三深夜',
+{'broadcast': ['7/9周三深夜'],
  'cast': ['小笠原亚里沙',
           '伊濑茉莉也',
           '石井康嗣',
@@ -187,7 +248,7 @@ pprint(animes[0])
           '榎木淳弥',
           '上村祐翔'],
  'cn_title': '新 吊带袜天使',
- 'episodes': '(全13话)',
+ 'episodes': ['(全13话)'],
  'jp_title': 'New PANTY&STOCKING with GARTERBELT',
  'link': [{'name': '动画官网', 'url': 'https://newpsg.com/'},
           {'name': 'PV',
@@ -204,7 +265,7 @@ pprint(animes[0])
            '坂本胜',
            '动画制作：TRIGGER'],
  'tags': ['美式喜剧', '脑洞', '无节操', '无厘头'],
- 'type': '原创动画'}
+ 'type': ['原创动画']}
 ```
 
 恭喜 🥳🥳🥳
